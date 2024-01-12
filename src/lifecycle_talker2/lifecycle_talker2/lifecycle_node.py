@@ -2,7 +2,7 @@ import rclpy
 from rclpy.lifecycle import State, TransitionCallbackReturn, Node
 
 
-class LifecycleNodeExample(Node):
+class Lifecycletalker2(Node):
     def __init__(self, node_name, **kwargs) -> None:
         super().__init__(node_name, **kwargs)
 
@@ -33,7 +33,7 @@ class LifecycleNodeExample(Node):
 
 def main(args=None) -> None:
     rclpy.init(args=args)
-    lifecycle_node = LifecycleNodeExample("lifecycle_node")
+    lifecycle_node = Lifecycletalker2("lifecycle_talker2")
     rclpy.spin(lifecycle_node)
     rclpy.shutdown()
 

@@ -1,6 +1,6 @@
 from setuptools import find_packages, setup
 
-package_name = "LifecycleNodeExample"
+package_name = "lifecycle_talker2"
 
 setup(
     name=package_name,
@@ -18,6 +18,6 @@ setup(
     license="TODO: License declaration",
     tests_require=["pytest"],
     entry_points={
-        "console_scripts": ["lifecycle_node=LifecycleNodeExample.lifecycle_node:main"],
+        "console_scripts": ["lifecycle_talker2=lifecycle_talker2.lifecycle_node:main"],
     },
 )

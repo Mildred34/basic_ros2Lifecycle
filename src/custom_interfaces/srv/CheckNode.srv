@@ -1,0 +1,3 @@
+string name # node to check
+---
+bool success   # indicate successful run of triggered service

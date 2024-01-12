@@ -341,3 +341,9 @@ doc/
 
 ## Setting files
 *.settings
+
+## Install files
+/install
+
+## Log files
+/log
