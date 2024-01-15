@@ -15,7 +15,7 @@ class NodeCheckerService(Node):
     def node_checker_callback(self, request, response):
         self.get_logger().info(f"Node to check: {request.name}")
 
-        node_names = rclpy.Node.get_node_names()
+        node_names = Node.get_node_names(self)
 
         if request.name in node_names:
             response.success = True

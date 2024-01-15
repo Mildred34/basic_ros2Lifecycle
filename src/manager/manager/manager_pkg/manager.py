@@ -5,7 +5,7 @@ from transitions.extensions.states import Timeout, add_state_features
 import sys
 import rclpy
 from rclpy.node import Node
-from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
+from rclpy.callback_groups import MutuallyExclusiveCallbackGroup, ReentrantCallbackGroup
 from rclpy.executors import (
     ExternalShutdownException,
     MultiThreadedExecutor,
@@ -79,7 +79,7 @@ class Manager(Node, object):
     def __init__(self):
         super().__init__("manager")
 
-        self.node_list = ["lc_talker", "lc_listener"]
+        self.node_list = ["lc_talker"]  # "lc_listener"
 
         # Initialize the change_state_client that will update the talker state
         self.change_talking_state_cli = self.create_client(
@@ -122,12 +122,19 @@ class Manager(Node, object):
 
         self.client_cb_group = MutuallyExclusiveCallbackGroup()
         self.timer_cb_group = MutuallyExclusiveCallbackGroup()
+        self.all_cb_group = ReentrantCallbackGroup()
 
         # Client to check if node is done
         self.done_checker = []
         for node in self.node_list:
             srv_name = "/" + node + "/isdone"
-            self.done_checker.append(self.create_client(Trigger, srv_name))
+            self.done_checker.append(
+                self.create_client(
+                    Trigger,
+                    srv_name,
+                    callback_group=self.all_cb_group,
+                )
+            )
 
             while not self.done_checker[-1].wait_for_service(timeout_sec=1.0):
                 self.get_logger().info(
@@ -138,7 +145,7 @@ class Manager(Node, object):
         self.checker_node_cli = self.create_client(
             CheckNode,
             "/check_node",
-            callback_group=self.client_cb_group,
+            callback_group=self.all_cb_group,
         )
 
         while not self.checker_node_cli.wait_for_service(timeout_sec=1.0):
@@ -147,7 +154,7 @@ class Manager(Node, object):
             )
 
         self.call_timer = self.create_timer(
-            5.0, self.cb_checker_nodestillactive, callback_group=self.timer_cb_group
+            5.0, self.cb_checker_nodestillactive, callback_group=self.all_cb_group
         )
 
         # Enregistrement des fonctions d'état
@@ -178,7 +185,7 @@ class Manager(Node, object):
         """
         Monitoring node every 5s
         """
-        self.get_logger().info("Checker service called!")
+        self.get_logger().warn("Checker service called!")
 
         res = True
 
@@ -215,7 +222,7 @@ class Manager(Node, object):
             except Exception as e:
                 self.get_logger().info("Service call failed %r" % (e,))
             else:
-                self.get_logger().info("Result : %s" % (response.success))
+                self.get_logger().debug("Result : %s" % (response.success))
                 res = response.success
 
             if res:
@@ -361,31 +368,6 @@ class Manager(Node, object):
     def STATE_ERROR(self):
         self.shutdown()
 
-    # async def gui_callback(self):
-    #     self.event, self.values = self.window.read(timeout=10)
-
-    #     if self.event in ('Exit', 'None'):
-    #         exit()
-
-    #     elif self.event == 'Talk':
-    #         ######  Here start the talker like it would with `ros2 run py_pubsub talker`
-
-    #         # Update the transition according to current button state
-    #         next_talking_transition = 'activate' if not self.is_talking else 'deactivate'
-
-    #         # Create the change state object
-    #         self.req.transition = Transition(label=next_talking_transition)
-
-    #         # Call to the service
-    #         future_lifecycle = self.change_talking_state_cli.call_async(self.req)
-    #         result_change_state = await future_lifecycle
-
-    #         # If the request was successful, update the streaming status
-    #         if result_change_state.success:
-    #             self.is_talking = not self.is_talking
-    #             button_color = sg.theme_button_color() if not self.is_talking else 'red'
-    #             self.window['Talk'].update(button_color=button_color)
-
     def exec(self):
         while True:
             try:
@@ -407,11 +389,11 @@ def main(args=None):
 
     # Start the ROS2 node on a separate thread
     # thread = Thread(target=spin_node,args=(executor,)) # communinication not working if doing like that
-    thread = Thread(target=executor.spin)
+    thread1 = Thread(target=executor.spin)
 
     try:
         # Spin the node so the callback function is called.
-        thread.start()
+        thread1.start()
 
         manager_node.get_logger().info("Spinned ROS2 Node . . .")
         manager_node.exec()
@@ -427,7 +409,7 @@ def main(args=None):
         executor.shutdown()
 
     try:
-        thread.join()
+        thread1.join()
     except KeyboardInterrupt:
         pass
 

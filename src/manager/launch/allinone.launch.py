@@ -5,11 +5,12 @@ from launch_ros.actions import LifecycleNode, Node
 
 
 def generate_launch_description():
-    ld = LaunchDescription()
+    nodes = []
 
     checker_node = Node(
         package="manager", executable="node_checker", name="node_checker", output="both"
     )
+    nodes.append(checker_node)
 
     manager_node = Node(
         package="manager",
@@ -17,8 +18,14 @@ def generate_launch_description():
         name="lc_manager",
         namespace="",
         output="both",
-        on_exit=EmitEvent(event=Shutdown(reason="Window closed")),
+        arguments=[
+            "--ros-args",
+            "--log-level",
+            "info",
+        ],
+        # on_exit=EmitEvent(event=Shutdown(reason="Window closed")),
     )
+    nodes.append(manager_node)
 
     lifecycle_talker_node = LifecycleNode(
         package="lifecycle_talker",
@@ -26,6 +33,11 @@ def generate_launch_description():
         name="lc_talker",
         namespace="",
         output="both",
+        arguments=[
+            "--ros-args",
+            "--log-level",
+            "info",
+        ],
     )
 
     lifecycle_listener_node = LifecycleNode(
@@ -34,11 +46,13 @@ def generate_launch_description():
         name="lc_listener",
         namespace="",
         output="both",
+        arguments=[
+            "--ros-args",
+            "--log-level",
+            "info",
+        ],
     )
+    nodes.append(lifecycle_talker_node)
+    nodes.append(lifecycle_listener_node)
 
-    ld.add_action(manager_node)
-    ld.add_action(checker_node)
-    ld.add_action(lifecycle_talker_node)
-    ld.add_action(lifecycle_listener_node)
-
-    return ld
+    return LaunchDescription(nodes)
