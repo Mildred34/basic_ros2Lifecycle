@@ -6,7 +6,6 @@ from rclpy.node import Node
 
 
 class NodeCheckerService(Node):
-
     def __init__(self):
         super().__init__("NodeChecker_service_node")
         self.srv = self.create_service(
@@ -17,10 +16,11 @@ class NodeCheckerService(Node):
         self.get_logger().info(f"Node to check: {request.name}")
 
         node_names = rclpy.Node.get_node_names()
-    
+
         if request.name in node_names:
             response.success = True
         else:
+            self.get_logger().error(f"Node {request.name} Failed! ")
             response.success = False
 
         return response

@@ -25,140 +25,174 @@ from rclpy.lifecycle import Publisher
 from rclpy.lifecycle import State
 from rclpy.lifecycle import TransitionCallbackReturn
 from rclpy.timer import Timer
+from std_srvs.srv import Trigger
 
 import std_msgs.msg
 
 
 class LifecycleTalker(Node):
-  """Our lifecycle talker node."""
+    """Our lifecycle talker node."""
 
-  def __init__(self, node_name, **kwargs):
-    """Construct the node."""
-    self.qos_policy = rclpy.qos.QoSProfile(  # reliability=rclpy.qos.ReliabilityPolicy.BEST_EFFORT,
-    # history=rclpy.qos.HistoryPolicy.KEEP_LAST,
-      depth=1,
-    # durability=rclpy.qos.DurabilityPolicy.TRANSIENT_LOCAL
-    )
-    self._count: int = 0
-    self._pub: Optional[Publisher] = None
-    self._timer: Optional[Timer] = None
-    super().__init__(node_name, **kwargs)
+    def __init__(self, node_name, **kwargs):
+        """Construct the node."""
+        super().__init__(node_name, **kwargs)
+        self.qos_policy = rclpy.qos.QoSProfile(  # reliability=rclpy.qos.ReliabilityPolicy.BEST_EFFORT,
+            # history=rclpy.qos.HistoryPolicy.KEEP_LAST,
+            depth=1,
+            # durability=rclpy.qos.DurabilityPolicy.TRANSIENT_LOCAL
+        )
+        self._count: int = 0
+        self._pub: Optional[Publisher] = None
+        self._timer: Optional[Timer] = None
 
-  def publish(self):
-    """Publish a new message when enabled."""
-    msg = std_msgs.msg.String()
-    msg.data = "Lifecycle HelloWorld #" + str(self._count);
-    self._count += 1
+        # Service for checking if node is done
+        self._done = False
+        self.srv = self.create_service(
+            Trigger, "/" + node_name + "/isdone", self.isdone_callback
+        )
 
-    # Print the current state for demo purposes
-    if self._pub is None or not self._pub.is_activated:
-      self.get_logger().info('Lifecycle publisher is currently inactive. Messages are not published.')
-    else:
-      self.get_logger().debug(f'Lifecycle publisher is active. Publishing: [{msg.data}]')
+    def isdone_callback(self, request, response):
+        """Check if node is done
 
-    # We independently from the current state call publish on the lifecycle
-    # publisher.
-    # Only if the publisher is in an active state, the message transfer is
-    # enabled and the message actually published.
-    if self._pub is not None:
-      self._pub.publish(msg)
+        Args:
+            request (Trigger.Request): Empty
+            response (Trigger.Response): Boolean + String
 
-  def on_configure(self, state: State) -> TransitionCallbackReturn:
-    """
-    Configure the node, after a configuring transition is requested.
+        Returns:
+            Trigger.Response: Boolean + string
+        """
+        if self._done:
+            response.success = True
+        else:
+            response.success = False
+        return response
 
-    on_configure callback is being called when the lifecycle node
-    enters the "configuring" state.
-    
-    :return: The state machine either invokes a transition to the "inactive" state or stays
-    in "unconfigured" depending on the return value.
-      TransitionCallbackReturn.SUCCESS transitions to "inactive".
-      TransitionCallbackReturn.FAILURE transitions to "unconfigured".
-      TransitionCallbackReturn.ERROR or any uncaught exceptions to "errorprocessing"
-    """
-    self._pub = self.create_lifecycle_publisher(std_msgs.msg.String, "lifecycle_chatter", 10)
-    self._timer_ = self.create_timer(1.0, self.publish)
+    def publish(self):
+        """Publish a new message when enabled."""
+        msg = std_msgs.msg.String()
+        msg.data = "Lifecycle HelloWorld #" + str(self._count)
+        self._count += 1
 
-    self.get_logger().info("on_configure() is called.")
-    return TransitionCallbackReturn.SUCCESS
+        # Print the current state for demo purposes
+        if self._pub is None or not self._pub.is_activated:
+            self.get_logger().info(
+                "Lifecycle publisher is currently inactive. Messages are not published."
+            )
+        else:
+            self.get_logger().debug(
+                f"Lifecycle publisher is active. Publishing: [{msg.data}]"
+            )
 
-  def on_activate(self, state: State) -> TransitionCallbackReturn:
-    # Differently to rclcpp, a lifecycle publisher transitions automatically between the inactive and
-    # enabled state and viceversa.
-    # For that reason, we only need to write an on_configure() and on_cleanup() callbacks, and we don't
-    # need to write on_activate()/on_deactivate() callbacks.
+        # We independently from the current state call publish on the lifecycle
+        # publisher.
+        # Only if the publisher is in an active state, the message transfer is
+        # enabled and the message actually published.
+        if self._pub is not None:
+            self._pub.publish(msg)
 
-    # Log, only for demo purposes
-    self.get_logger().info("on_activate() is called.")
+        if self._count > 20:
+            self._done = True
 
-    # The default LifecycleNode callback is the one transitioning
-    # LifecyclePublisher entities from inactive to enabled.
-    # If you override on_activate(), don't forget to call the parent class method as well!!
-    return super().on_activate(state)
-  
-  def on_deactivate(self, state: State) -> TransitionCallbackReturn:
-    # Log, only for demo purposes
-    self.get_logger().info("on_deactivate() is called.")
-    # Same reasong here that for on_activate().
-    # These are the two only cases where you need to call the parent method.
-    return super().on_deactivate(state)
+    def on_configure(self, state: State) -> TransitionCallbackReturn:
+        """
+        Configure the node, after a configuring transition is requested.
 
-  def on_cleanup(self, state: State) -> TransitionCallbackReturn:
-    """
-    Cleanup the node, after a cleaning-up transition is requested.
+        on_configure callback is being called when the lifecycle node
+        enters the "configuring" state.
 
-    on_cleanup callback is being called when the lifecycle node
-    enters the "cleaning up" state.
-    
-    :return: The state machine either invokes a transition to the "unconfigured" state or stays
-    in "inactive" depending on the return value.
-      TransitionCallbackReturn.SUCCESS transitions to "unconfigured".
-      TransitionCallbackReturn.FAILURE transitions to "inactive".
-      TransitionCallbackReturn.ERROR or any uncaught exceptions to "errorprocessing"
-    """
-    self.destroy_timer(self._timer)
-    self.destroy_publisher(self._pub)
+        :return: The state machine either invokes a transition to the "inactive" state or stays
+        in "unconfigured" depending on the return value.
+          TransitionCallbackReturn.SUCCESS transitions to "inactive".
+          TransitionCallbackReturn.FAILURE transitions to "unconfigured".
+          TransitionCallbackReturn.ERROR or any uncaught exceptions to "errorprocessing"
+        """
+        self._pub = self.create_lifecycle_publisher(
+            std_msgs.msg.String, "lifecycle_chatter", 10
+        )
+        self._timer_ = self.create_timer(1.0, self.publish)
 
-    self.get_logger().info('on_cleanup() is called.')
-    return TransitionCallbackReturn.SUCCESS
+        self.get_logger().info("on_configure() is called.")
+        return TransitionCallbackReturn.SUCCESS
 
-  def on_shutdown(self, state: State) -> TransitionCallbackReturn:
-    """
-    Shutdown the node, after a shutting-down transition is requested.
+    def on_activate(self, state: State) -> TransitionCallbackReturn:
+        # Differently to rclcpp, a lifecycle publisher transitions automatically between the inactive and
+        # enabled state and viceversa.
+        # For that reason, we only need to write an on_configure() and on_cleanup() callbacks, and we don't
+        # need to write on_activate()/on_deactivate() callbacks.
 
-    on_shutdown callback is being called when the lifecycle node
-    enters the "shutting down" state.
-    
-    :return: The state machine either invokes a transition to the "finalized" state or stays
-    in the current state depending on the return value.
-      TransitionCallbackReturn.SUCCESS transitions to "unconfigured".
-      TransitionCallbackReturn.FAILURE transitions to "inactive".
-      TransitionCallbackReturn.ERROR or any uncaught exceptions to "errorprocessing"
-    """
-    self.destroy_timer(self._timer)
-    self.destroy_publisher(self._pub)
+        # Log, only for demo purposes
+        self.get_logger().info("on_activate() is called.")
 
-    self.get_logger().info('on_shutdown() is called.')
-    return TransitionCallbackReturn.SUCCESS
+        # The default LifecycleNode callback is the one transitioning
+        # LifecyclePublisher entities from inactive to enabled.
+        # If you override on_activate(), don't forget to call the parent class method as well!!
+        return super().on_activate(state)
+
+    def on_deactivate(self, state: State) -> TransitionCallbackReturn:
+        # Log, only for demo purposes
+        self.get_logger().info("on_deactivate() is called.")
+        # Same reasong here that for on_activate().
+        # These are the two only cases where you need to call the parent method.
+        return super().on_deactivate(state)
+
+    def on_cleanup(self, state: State) -> TransitionCallbackReturn:
+        """
+        Cleanup the node, after a cleaning-up transition is requested.
+
+        on_cleanup callback is being called when the lifecycle node
+        enters the "cleaning up" state.
+
+        :return: The state machine either invokes a transition to the "unconfigured" state or stays
+        in "inactive" depending on the return value.
+          TransitionCallbackReturn.SUCCESS transitions to "unconfigured".
+          TransitionCallbackReturn.FAILURE transitions to "inactive".
+          TransitionCallbackReturn.ERROR or any uncaught exceptions to "errorprocessing"
+        """
+        self.destroy_timer(self._timer)
+        self.destroy_publisher(self._pub)
+
+        self.get_logger().info("on_cleanup() is called.")
+        return TransitionCallbackReturn.SUCCESS
+
+    def on_shutdown(self, state: State) -> TransitionCallbackReturn:
+        """
+        Shutdown the node, after a shutting-down transition is requested.
+
+        on_shutdown callback is being called when the lifecycle node
+        enters the "shutting down" state.
+
+        :return: The state machine either invokes a transition to the "finalized" state or stays
+        in the current state depending on the return value.
+          TransitionCallbackReturn.SUCCESS transitions to "unconfigured".
+          TransitionCallbackReturn.FAILURE transitions to "inactive".
+          TransitionCallbackReturn.ERROR or any uncaught exceptions to "errorprocessing"
+        """
+        self.destroy_timer(self._timer)
+        self.destroy_publisher(self._pub)
+
+        self.get_logger().info("on_shutdown() is called.")
+        return TransitionCallbackReturn.SUCCESS
 
 
 # A lifecycle node has the same node API
 # as a regular node. This means we can spawn a
 # node, give it a name and add it to the executor.
 
+
 def main():
-  rclpy.init()
+    rclpy.init()
 
-  executor = rclpy.executors.SingleThreadedExecutor()
-  lc_node = LifecycleTalker('lc_talker')
-  executor.add_node(lc_node)
-  try:
-    executor.spin()
-  except (KeyboardInterrupt, rclpy.executors.ExternalShutdownException):
-    pass
-  finally:
-      lc_node.destroy_node()
-      executor.shutdown()
+    executor = rclpy.executors.SingleThreadedExecutor()
+    lc_node = LifecycleTalker("lc_talker")
+    executor.add_node(lc_node)
+    try:
+        executor.spin()
+    except (KeyboardInterrupt, rclpy.executors.ExternalShutdownException):
+        pass
+    finally:
+        lc_node.destroy_node()
+        executor.shutdown()
 
-if __name__ == '__main__':
-  main()
+
+if __name__ == "__main__":
+    main()
