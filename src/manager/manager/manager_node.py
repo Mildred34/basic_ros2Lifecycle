@@ -45,12 +45,10 @@ def main(args=None):
 
     except SystemExit as e:
         rclpy.logging.get_logger("Quitting").error(
-            "Error happened of type: {}\n msg: {} \nEnd of testing grasp!".format(
-                type(e), e
-            )
+            "Error happened of type: {}\n msg: {} \nEnding program".format(type(e), e)
         )
     except KeyboardInterrupt:
-        rclpy.logging.get_logger("Quitting").info("End of testing grasp!")
+        rclpy.logging.get_logger("Quitting").info("Ending program!")
     finally:
         manager_node.get_logger().info("Shutting down ROS2 Node . . .")
         manager_node.destroy_node()

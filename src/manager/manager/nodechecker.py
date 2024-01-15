@@ -12,7 +12,7 @@ class NodeCheckerService(Node):
             CheckNode, "check_node", self.node_checker_callback
         )
 
-    def node_checker_callback(self, request, response):
+    async def node_checker_callback(self, request, response):
         self.get_logger().info(f"Node to check: {request.name}")
 
         node_names = Node.get_node_names(self)

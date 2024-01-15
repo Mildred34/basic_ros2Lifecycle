@@ -1,24 +1,22 @@
 import collections
-import re
-import time
+from threading import Thread
 from transitions.extensions import HierarchicalGraphMachine
 from transitions.extensions.states import Timeout, add_state_features
-import sys
 import rclpy
+from rclpy.executors import ExternalShutdownException, MultiThreadedExecutor
 from rclpy.node import Node
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup, ReentrantCallbackGroup
-from rclpy.executors import (
-    ExternalShutdownException,
-    MultiThreadedExecutor,
-    SingleThreadedExecutor,
-)
-
+from std_srvs.srv import Trigger
+import re
+import sys
 from lifecycle_msgs.srv import ChangeState, GetState
 from lifecycle_msgs.msg import Transition
-from std_srvs.srv import Trigger
 from custom_interfaces.srv import CheckNode
+from time import sleep
+from functools import partial
+from rclpy.task import Future
 
-from threading import Thread
+print("Program started")
 
 
 @add_state_features(Timeout)
@@ -26,66 +24,11 @@ class CustomStateMachine(HierarchicalGraphMachine):
     pass
 
 
-class Manager(Node, object):
-    # Define some states.
-    states = [
-        "configure",
-        {
-            "name": "activate",
-        },
-        {
-            "name": "working",
-        },
-        {
-            "name": "shutdown",
-        },
-        {
-            "name": "error",
-        },
-    ]
-
-    # Transitions
-    transitions = [
-        # init
-        {
-            "trigger": "activate",
-            "source": "configure",
-            "dest": "activate",
-            "conditions": "isconfigured",
-        },
-        {
-            "trigger": "gotowork",
-            "source": "activate",
-            "dest": "working",
-            "conditions": "isactivated",
-        },
-        {
-            "trigger": "end",
-            "source": "working",
-            "dest": "shutdown",
-        },
-        {
-            "trigger": "gotanerror",
-            "source": "*",
-            "dest": "error",
-            "before": "log_error",
-        },
-        {
-            "trigger": "shutdown",
-            "source": "error",
-            "dest": "shutdown",
-        },
-    ]
-
+class Manager_System(Node):
     def __init__(self):
         super().__init__("manager")
-
-        self.node_list = ["lc_talker", "lc_listener"]
-
-        # Callback groups
-        self.client_cb_group = MutuallyExclusiveCallbackGroup()
-        self.timer_cb_group = MutuallyExclusiveCallbackGroup()
         self.all_cb_group = ReentrantCallbackGroup()
+        self.node_list = ["lc_talker", "lc_listener"]
 
         # Initialize the change_state_client that will update the talker state
         self.change_talking_state_cli = self.create_client(
@@ -166,8 +109,95 @@ class Manager(Node, object):
             )
 
         self.call_timer = self.create_timer(
-            1.0, self.cb_checker_nodestillactive, callback_group=self.all_cb_group
+            2.0, self.cb_checker_nodestillactive, callback_group=self.all_cb_group
         )
+
+    # Monitoring nodes
+    def cb_checker_nodestillactive(self):
+        """
+        Monitoring node every 5s
+        """
+        self.get_logger().warn("Checker service called!")
+
+        res = True
+
+        # Check if node's action are done
+        for i, node in enumerate(self.node_list):
+            req = Trigger.Request()
+
+            future: Future = self.done_checker[i].call_async(req)
+            future.add_done_callback(self._response_cb, node)
+
+    def _response_cb(self, node: str, future: Future) -> None:
+        try:
+            response = future
+        except Exception as e:
+            self.get_logger().info("Service call failed %r" % (e,))
+        else:
+            self.get_logger().debug("Timer callback Result : %s" % (response.success))
+            res = response.success
+
+        if res:
+            self.get_logger().warn(f"Node {node} Done! ")
+            self.node_list.remove(node)
+
+        if len(self.node_list) == 0:
+            self.state = "shutdown"
+
+
+class Manager(Manager_System, object):
+    # Define some states.
+    states = [
+        "configure1",
+        {
+            "name": "activate1",
+        },
+        {
+            "name": "working",
+        },
+        {
+            "name": "shutdown",
+        },
+        {
+            "name": "error",
+        },
+    ]
+
+    # Transitions
+    transitions = [
+        # init
+        {
+            "trigger": "gotoactivate",
+            "source": "configure1",
+            "dest": "activate1",
+            "conditions": "isconfigured",
+        },
+        {
+            "trigger": "gotowork",
+            "source": "activate1",
+            "dest": "working",
+            "conditions": "isactivated",
+        },
+        {
+            "trigger": "end",
+            "source": "working",
+            "dest": "shutdown",
+        },
+        {
+            "trigger": "gotanerror",
+            "source": "*",
+            "dest": "error",
+            "before": "log_error",
+        },
+        {
+            "trigger": "shutdown",
+            "source": "error",
+            "dest": "shutdown",
+        },
+    ]
+
+    def __init__(self):
+        super().__init__()
 
         # Enregistrement des fonctions d'état
         # History of the state machine
@@ -178,8 +208,10 @@ class Manager(Node, object):
             model=self,
             states=Manager.states,
             transitions=Manager.transitions,
-            initial="configure",
+            initial="configure1",
         )
+
+        self._count = 0
 
     @property
     def state(self):
@@ -191,58 +223,6 @@ class Manager(Node, object):
 
     def log_error(self):
         print(f"Error at {self.state} going shut down nodes!")
-
-    # Monitoring nodes
-    async def cb_checker_nodestillactive(self):
-        """
-        Monitoring node every 5s
-        """
-        self.get_logger().warn("Checker service called!")
-
-        res = True
-
-        # Check if nodes are still alive
-        for node in self.node_list:
-            req = CheckNode.Request()
-            req.name = node
-
-            future = self.checker_node_cli.call_async(req)
-
-            try:
-                response = await future
-            except Exception as e:
-                self.get_logger().info("Service call failed %r" % (e,))
-            else:
-                self.get_logger().info("Result : %s" % (response.success))
-
-                if not response.success:
-                    res = response.success
-                    break
-
-        if not res:
-            self.gotanerror()
-            return
-
-        # Check if node's action are done
-        for i, node in enumerate(self.node_list):
-            req = Trigger.Request()
-
-            future = self.done_checker[i].call_async(req)
-
-            try:
-                response = await future
-            except Exception as e:
-                self.get_logger().info("Service call failed %r" % (e,))
-            else:
-                self.get_logger().debug("Result : %s" % (response.success))
-                res = response.success
-
-            if res:
-                self.get_logger().warn(f"Node {node} Done! ")
-                self.node_list.remove(node)
-
-        if len(self.node_list) == 0:
-            self.end()
 
     # State getter / setter
     def get_state(self, nodename: str) -> str:
@@ -304,16 +284,6 @@ class Manager(Node, object):
 
         return future.result().success
 
-    # Special function exit/start state machine
-    def on_enter_activate(self) -> None:
-        self.get_logger().info("Manager is going to activate talker and listener...")
-
-        self.set_state("lc_talker", "activate")
-        self.set_state("lc_listener", "activate")
-
-    def on_enter_working(self) -> None:
-        self.get_logger().info("Nodes are now working !!!")
-
     # Transition checking
     def isconfigured(self) -> bool:
         """Check if all the nodes are configured
@@ -324,6 +294,8 @@ class Manager(Node, object):
 
         state1 = self.get_state("lc_talker")
         state2 = self.get_state("lc_listener")
+
+        self.get_logger().error(f"State talker {state1} and listener: {state2}")
 
         return (state1 != "unconfigured") and (state2 != "unconfigured")
 
@@ -363,11 +335,32 @@ class Manager(Node, object):
             self.STATE_ERROR()
 
     def STATE_CONFIGURE(self):
-        time.sleep(5)
-        self.activate()
+        sleep(5)
+        self.gotoactivate()
+
+        self.get_logger().error(f"Timer canceled ? {self.call_timer.is_canceled()}")
+        self.get_logger().error(f"Timer ready ? {self.call_timer.is_ready()}")
+
+        self.get_logger().error(
+            f"Timer since last call: ? {self.call_timer.time_since_last_call()}"
+        )
+        self.get_logger().error(
+            f"Timer till next call: ? {self.call_timer.time_until_next_call()}"
+        )
 
     def STATE_ACTIVATE(self):
-        self.gotowork()
+        sleep(0.5)
+        if self._count < 11:
+            self.get_logger().error(f"Timer canceled ? {self.call_timer.is_canceled()}")
+            self.get_logger().error(f"Timer ready ? {self.call_timer.is_ready()}")
+
+            self.get_logger().error(
+                f"Timer since last call: ? {self.call_timer.time_since_last_call()}"
+            )
+            self.get_logger().error(
+                f"Timer till next call: ? {self.call_timer.time_until_next_call()}"
+            )
+            self._count += 1
 
     def STATE_WORKING(self):
         pass
@@ -395,38 +388,35 @@ class Manager(Node, object):
 def main(args=None):
     rclpy.init(args=args)
 
-    # Create the node
     manager_node = Manager()
     executor = MultiThreadedExecutor()
     executor.add_node(manager_node)
 
     # Start the ROS2 node on a separate thread
     # thread = Thread(target=spin_node,args=(executor,)) # communinication not working if doing like that
-    thread1 = Thread(target=executor.spin)
+    thread = Thread(target=executor.spin)
 
+    # Let the app running on the main thread
     try:
-        # Spin the node so the callback function is called.
-        thread1.start()
-
-        manager_node.get_logger().info("Spinned ROS2 Node . . .")
+        thread.start()
+        manager_node.get_logger().info("Spinned ROS2 Node. . .")
         manager_node.exec()
 
-    except (KeyboardInterrupt, ExternalShutdownException):
-        # If the node receive a KeyboardInterrupt command
-        pass
-
+    except SystemExit as e:
+        rclpy.logging.get_logger("Quitting").error(
+            "Error happened of type: {}\n msg: {} \nEnding program".format(type(e), e)
+        )
+    except KeyboardInterrupt:
+        rclpy.logging.get_logger("Quitting").info("Ending program!")
     finally:
-        # Destroy the node explicitly
-        # (optional - Done automatically when node is garbage collected)
+        manager_node.get_logger().info("Shutting down ROS2 Node . . .")
         manager_node.destroy_node()
         executor.shutdown()
 
     try:
-        thread1.join()
+        thread.join()
     except KeyboardInterrupt:
         pass
-
-    rclpy.shutdown()
 
 
 if __name__ == "__main__":

@@ -50,7 +50,7 @@ class LifecycleListener(Node):
             Trigger, "/" + node_name + "/isdone", self.isdone_callback
         )
 
-    def isdone_callback(self, request, response):
+    async def isdone_callback(self, request, response):
         """Check if node is done
 
         Args:
