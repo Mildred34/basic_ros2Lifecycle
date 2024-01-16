@@ -1,5 +1,5 @@
 import collections
-from threading import Thread
+from threading import Thread, Lock
 from transitions.extensions import HierarchicalGraphMachine
 from transitions.extensions.states import Timeout, add_state_features
 import rclpy
@@ -113,7 +113,7 @@ class Manager_System(Node):
         )
 
     # Monitoring nodes
-    def cb_checker_nodestillactive(self):
+    async def cb_checker_nodestillactive(self):
         """
         Monitoring node every 5s
         """
@@ -121,28 +121,48 @@ class Manager_System(Node):
 
         res = True
 
+        # Check if nodes are still alive
+        for node in self.node_list:
+            req = CheckNode.Request()
+            req.name = node
+
+            future = self.checker_node_cli.call_async(req)
+
+            try:
+                response = await future
+            except Exception as e:
+                self.get_logger().info("Service call failed %r" % (e,))
+            else:
+                self.get_logger().info("Result : %s" % (response.success))
+
+                if not response.success:
+                    res = response.success
+                    break
+
+        if not res:
+            self.gotanerror()
+            return
+
         # Check if node's action are done
         for i, node in enumerate(self.node_list):
             req = Trigger.Request()
 
-            future: Future = self.done_checker[i].call_async(req)
-            future.add_done_callback(self._response_cb, node)
+            future = self.done_checker[i].call_async(req)
 
-    def _response_cb(self, node: str, future: Future) -> None:
-        try:
-            response = future
-        except Exception as e:
-            self.get_logger().info("Service call failed %r" % (e,))
-        else:
-            self.get_logger().debug("Timer callback Result : %s" % (response.success))
-            res = response.success
+            try:
+                response = await future
+            except Exception as e:
+                self.get_logger().info("Service call failed %r" % (e,))
+            else:
+                self.get_logger().debug("Result : %s" % (response.success))
+                res = response.success
 
-        if res:
-            self.get_logger().warn(f"Node {node} Done! ")
-            self.node_list.remove(node)
+            if res:
+                self.get_logger().warn(f"Node {node} Done! ")
+                self.node_list.remove(node)
 
         if len(self.node_list) == 0:
-            self.state = "shutdown"
+            self.end()
 
 
 class Manager(Manager_System, object):
@@ -335,8 +355,13 @@ class Manager(Manager_System, object):
             self.STATE_ERROR()
 
     def STATE_CONFIGURE(self):
+        # create a lock
+        lock = Lock()
+        # acquire the lock
+        with lock:
+            self.gotoactivate()
+
         sleep(5)
-        self.gotoactivate()
 
         self.get_logger().error(f"Timer canceled ? {self.call_timer.is_canceled()}")
         self.get_logger().error(f"Timer ready ? {self.call_timer.is_ready()}")
