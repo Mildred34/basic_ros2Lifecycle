@@ -10,7 +10,6 @@ from rclpy.callback_groups import MutuallyExclusiveCallbackGroup, ReentrantCallb
 from rclpy.executors import (
     ExternalShutdownException,
     MultiThreadedExecutor,
-    SingleThreadedExecutor,
 )
 
 from lifecycle_msgs.srv import ChangeState, GetState
@@ -363,7 +362,6 @@ class Manager(Node, object):
             self.STATE_ERROR()
 
     def STATE_CONFIGURE(self):
-        time.sleep(5)
         self.activate()
 
     def STATE_ACTIVATE(self):

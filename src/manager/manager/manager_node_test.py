@@ -355,37 +355,32 @@ class Manager(Manager_System, object):
             self.STATE_ERROR()
 
     def STATE_CONFIGURE(self):
-        # create a lock
-        lock = Lock()
-        # acquire the lock
-        with lock:
-            self.gotoactivate()
+        self.gotoactivate()
 
-        sleep(5)
+        # self.get_logger().error(f"Timer canceled ? {self.call_timer.is_canceled()}")
+        # self.get_logger().error(f"Timer ready ? {self.call_timer.is_ready()}")
 
-        self.get_logger().error(f"Timer canceled ? {self.call_timer.is_canceled()}")
-        self.get_logger().error(f"Timer ready ? {self.call_timer.is_ready()}")
-
-        self.get_logger().error(
-            f"Timer since last call: ? {self.call_timer.time_since_last_call()}"
-        )
-        self.get_logger().error(
-            f"Timer till next call: ? {self.call_timer.time_until_next_call()}"
-        )
+        # self.get_logger().error(
+        #     f"Timer since last call: ? {self.call_timer.time_since_last_call()}"
+        # )
+        # self.get_logger().error(
+        #     f"Timer till next call: ? {self.call_timer.time_until_next_call()}"
+        # )
+        pass
 
     def STATE_ACTIVATE(self):
         sleep(0.5)
-        if self._count < 11:
-            self.get_logger().error(f"Timer canceled ? {self.call_timer.is_canceled()}")
-            self.get_logger().error(f"Timer ready ? {self.call_timer.is_ready()}")
+        # if self._count < 11:
+        #     self.get_logger().error(f"Timer canceled ? {self.call_timer.is_canceled()}")
+        #     self.get_logger().error(f"Timer ready ? {self.call_timer.is_ready()}")
 
-            self.get_logger().error(
-                f"Timer since last call: ? {self.call_timer.time_since_last_call()}"
-            )
-            self.get_logger().error(
-                f"Timer till next call: ? {self.call_timer.time_until_next_call()}"
-            )
-            self._count += 1
+        #     self.get_logger().error(
+        #         f"Timer since last call: ? {self.call_timer.time_since_last_call()}"
+        #     )
+        #     self.get_logger().error(
+        #         f"Timer till next call: ? {self.call_timer.time_until_next_call()}"
+        #     )
+        #     self._count += 1
 
     def STATE_WORKING(self):
         pass
