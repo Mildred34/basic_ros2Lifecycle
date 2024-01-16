@@ -3,7 +3,11 @@ from threading import Thread, Lock
 from transitions.extensions import HierarchicalGraphMachine
 from transitions.extensions.states import Timeout, add_state_features
 import rclpy
-from rclpy.executors import ExternalShutdownException, MultiThreadedExecutor
+from rclpy.executors import (
+    ExternalShutdownException,
+    MultiThreadedExecutor,
+    SingleThreadedExecutor,
+)
 from rclpy.node import Node
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup, ReentrantCallbackGroup
 from std_srvs.srv import Trigger
@@ -27,8 +31,10 @@ class CustomStateMachine(HierarchicalGraphMachine):
 class Manager_System(Node):
     def __init__(self):
         super().__init__("manager")
-        self.all_cb_group = ReentrantCallbackGroup()
         self.node_list = ["lc_talker", "lc_listener"]
+        self.all_cb_group = ReentrantCallbackGroup()
+        self.timer_cb_group = MutuallyExclusiveCallbackGroup()
+        self.get_cb_group = MutuallyExclusiveCallbackGroup()
 
         # Initialize the change_state_client that will update the talker state
         self.change_talking_state_cli = self.create_client(
@@ -79,37 +85,10 @@ class Manager_System(Node):
 
             sys.exit()
 
-        # Client to check if node is done
-        self.done_checker = []
-        for node in self.node_list:
-            srv_name = "/" + node + "/isdone"
-            self.done_checker.append(
-                self.create_client(
-                    Trigger,
-                    srv_name,
-                    callback_group=self.all_cb_group,
-                )
-            )
-
-            while not self.done_checker[-1].wait_for_service(timeout_sec=1.0):
-                self.get_logger().info(
-                    f"Endind node Services named {srv_name} not available, waiting again..."
-                )
-
-        # client for node checker
-        self.checker_node_cli = self.create_client(
-            CheckNode,
-            "/check_node",
-            callback_group=self.all_cb_group,
-        )
-
-        while not self.checker_node_cli.wait_for_service(timeout_sec=1.0):
-            self.get_logger().info(
-                "Nodes checker services not available, waiting again..."
-            )
-
         self.call_timer = self.create_timer(
-            2.0, self.cb_checker_nodestillactive, callback_group=self.all_cb_group
+            2.0,
+            partial(self.cb_checker_nodestillactive),
+            callback_group=self.all_cb_group,
         )
 
     # Monitoring nodes
@@ -120,49 +99,6 @@ class Manager_System(Node):
         self.get_logger().warn("Checker service called!")
 
         res = True
-
-        # Check if nodes are still alive
-        for node in self.node_list:
-            req = CheckNode.Request()
-            req.name = node
-
-            future = self.checker_node_cli.call_async(req)
-
-            try:
-                response = await future
-            except Exception as e:
-                self.get_logger().info("Service call failed %r" % (e,))
-            else:
-                self.get_logger().info("Result : %s" % (response.success))
-
-                if not response.success:
-                    res = response.success
-                    break
-
-        if not res:
-            self.gotanerror()
-            return
-
-        # Check if node's action are done
-        for i, node in enumerate(self.node_list):
-            req = Trigger.Request()
-
-            future = self.done_checker[i].call_async(req)
-
-            try:
-                response = await future
-            except Exception as e:
-                self.get_logger().info("Service call failed %r" % (e,))
-            else:
-                self.get_logger().debug("Result : %s" % (response.success))
-                res = response.success
-
-            if res:
-                self.get_logger().warn(f"Node {node} Done! ")
-                self.node_list.remove(node)
-
-        if len(self.node_list) == 0:
-            self.end()
 
 
 class Manager(Manager_System, object):
@@ -311,13 +247,14 @@ class Manager(Manager_System, object):
         Returns:
             bool: true if every node are configured, false otherwise
         """
-
         state1 = self.get_state("lc_talker")
         state2 = self.get_state("lc_listener")
 
-        self.get_logger().error(f"State talker {state1} and listener: {state2}")
+        # self.get_logger().error(f"State talker {state1} and listener: {state2}")
 
-        return (state1 != "unconfigured") and (state2 != "unconfigured")
+        # return (state1 != "unconfigured") and (state2 != "unconfigured")
+
+        return True
 
     def isactivated(self) -> bool:
         """Check if all the nodes are active
@@ -326,10 +263,11 @@ class Manager(Manager_System, object):
             bool: true if every node are active, false otherwise
         """
 
-        state1 = self.get_state("lc_talker")
-        state2 = self.get_state("lc_listener")
+        # state1 = self.get_state("lc_talker")
+        # state2 = self.get_state("lc_listener")
 
-        return (state1 != "active") and (state2 != "active")
+        # return (state1 != "active") and (state2 != "active")
+        return True
 
     def stateMachine(self) -> None:
         self.get_logger().debug("State:{}".format(self.state))
@@ -357,30 +295,13 @@ class Manager(Manager_System, object):
     def STATE_CONFIGURE(self):
         self.gotoactivate()
 
-        # self.get_logger().error(f"Timer canceled ? {self.call_timer.is_canceled()}")
-        # self.get_logger().error(f"Timer ready ? {self.call_timer.is_ready()}")
-
-        # self.get_logger().error(
-        #     f"Timer since last call: ? {self.call_timer.time_since_last_call()}"
-        # )
-        # self.get_logger().error(
-        #     f"Timer till next call: ? {self.call_timer.time_until_next_call()}"
-        # )
-        pass
-
     def STATE_ACTIVATE(self):
-        sleep(0.5)
-        # if self._count < 11:
-        #     self.get_logger().error(f"Timer canceled ? {self.call_timer.is_canceled()}")
-        #     self.get_logger().error(f"Timer ready ? {self.call_timer.is_ready()}")
+        if self._count < 1:
+            # self.set_state("lc_talker", "activate")
+            # self.set_state("lc_listener", "activate")
+            self._count += 1
 
-        #     self.get_logger().error(
-        #         f"Timer since last call: ? {self.call_timer.time_since_last_call()}"
-        #     )
-        #     self.get_logger().error(
-        #         f"Timer till next call: ? {self.call_timer.time_until_next_call()}"
-        #     )
-        #     self._count += 1
+        self.gotowork()
 
     def STATE_WORKING(self):
         pass
