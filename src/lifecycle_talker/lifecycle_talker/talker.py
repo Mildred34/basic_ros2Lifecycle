@@ -71,7 +71,6 @@ class LifecycleTalker(Node):
         """Publish a new message when enabled."""
         msg = std_msgs.msg.String()
         msg.data = "Lifecycle HelloWorld #" + str(self._count)
-        self._count += 1
 
         # Print the current state for demo purposes
         if self._pub is None or not self._pub.is_activated:
@@ -87,11 +86,12 @@ class LifecycleTalker(Node):
         # publisher.
         # Only if the publisher is in an active state, the message transfer is
         # enabled and the message actually published.
-        if self._pub is not None:
+        if self._pub is not None and self._pub.is_activated:
             self._pub.publish(msg)
+            self._count += 1
 
-        if self._count > 5:
-            self._done = True
+            if self._count > 5:
+                self._done = True
 
     def on_configure(self, state: State) -> TransitionCallbackReturn:
         """
@@ -150,6 +150,7 @@ class LifecycleTalker(Node):
         """
         self.destroy_timer(self._timer)
         self.destroy_publisher(self._pub)
+        self.destroy_service(self.srv)
 
         self.get_logger().info("on_cleanup() is called.")
         return TransitionCallbackReturn.SUCCESS
@@ -169,6 +170,7 @@ class LifecycleTalker(Node):
         """
         self.destroy_timer(self._timer)
         self.destroy_publisher(self._pub)
+        self.destroy_service(self.srv)
 
         self.get_logger().info("on_shutdown() is called.")
         return TransitionCallbackReturn.SUCCESS

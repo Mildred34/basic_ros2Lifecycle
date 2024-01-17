@@ -37,6 +37,7 @@ setup(
     entry_points={
         "console_scripts": [
             "lc_manager = manager.manager_node:main",
+            "lc_manager2 = manager.manager_node2:main",
             "lc_manager_test = manager.manager_node_test:main",
             "node_checker = manager.nodechecker:main",
         ],

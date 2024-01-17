@@ -93,26 +93,20 @@ class Manager(Node, object):
 
         # Initialize the change_state_client that will update the talker state
         self.change_talking_state_cli = self.create_client(
-            ChangeState,
-            "/lc_talker/change_state"
+            ChangeState, "/lc_talker/change_state"
         )
 
         # Initialize the change_state_client that will update the listener state
         self.change_listening_state_cli = self.create_client(
-            ChangeState,
-            "/lc_listener/change_state"
+            ChangeState, "/lc_listener/change_state"
         )
 
         # Initialize the get_state_client that will get the talker state
-        self.get_talking_state_cli = self.create_client(
-            GetState,
-            "/lc_talker/get_state"
-        )
+        self.get_talking_state_cli = self.create_client(GetState, "/lc_talker/get_state")
 
         # Initialize the get_state_client that will get the listener state
         self.get_listening_state_cli = self.create_client(
-            GetState,
-            "/lc_listener/get_state"
+            GetState, "/lc_listener/get_state"
         )
 
         # Call the on_configure state
@@ -245,8 +239,8 @@ class Manager(Node, object):
         Returns:
             str: _description_
         """
-        event=Event()
-        
+        event = Event()
+
         def _get_node_state_result(nodename: str, future: Future):
             if future.result() is not None:
                 self.get_logger().debug(
@@ -254,7 +248,7 @@ class Manager(Node, object):
                 )
             nonlocal event
             event.set()
-            
+
         self.get_logger().debug(f"Get {nodename} state!")
 
         # request
@@ -262,12 +256,12 @@ class Manager(Node, object):
 
         if nodename == "lc_talker":
             future = self.get_talking_state_cli.call_async(self.req)
-            future.add_done_callback(partial(_get_node_state_result,nodename))
+            future.add_done_callback(partial(_get_node_state_result, nodename))
             event.wait()
-            
+
         elif nodename == "lc_listener":
             future = self.get_listening_state_cli.call_async(self.req)
-            future.add_done_callback(partial(_get_node_state_result,nodename))
+            future.add_done_callback(partial(_get_node_state_result, nodename))
             event.wait()
 
         if future.result() is not None:
@@ -288,12 +282,12 @@ class Manager(Node, object):
         Returns:
             bool: _description_
         """
-        event1=Event()
-        
+        event1 = Event()
+
         def _set_node_state_result(future: Future):
             nonlocal event1
             event1.set()
-            
+
         self.get_logger().info(f"Change {nodename} to state {state}")
 
         # Transition request
@@ -320,7 +314,7 @@ class Manager(Node, object):
 
         self.set_node_state("lc_talker", "configure")
         self.set_node_state("lc_listener", "configure")
-        
+
     def on_enter_activate(self) -> None:
         self.get_logger().info("Manager is going to activate talker and listener...")
 
@@ -357,11 +351,11 @@ class Manager(Node, object):
 
     def stateMachine(self) -> None:
         self.get_logger().debug("State:{}".format(self.state))
-        
+
         # INIT STATE
         if re.search("^init", self.state) is not None:
             self.STATE_INIT()
-            
+
         # CONFIGURE STATE
         if re.search("^configure", self.state) is not None:
             self.STATE_CONFIGURE()
@@ -384,7 +378,7 @@ class Manager(Node, object):
 
     def STATE_INIT(self):
         self.gotoconfigure()
-        
+
     def STATE_CONFIGURE(self):
         self.activate()
 
@@ -448,7 +442,7 @@ def main(args=None):
     except KeyboardInterrupt:
         pass
 
-    rclpy.shutdown()
+    # rclpy.shutdown()
 
 
 if __name__ == "__main__":

@@ -145,8 +145,10 @@ class LifecycleListener(Node):
           TransitionCallbackReturn.ERROR or any uncaught exceptions to "errorprocessing"
         """
         self.get_logger().info("on_cleanup() is called.")
+        self.destroy_subscription(self._sub)
+        self.destroy_service(self.srv)
 
-        return TransitionCallbackReturn.SUCCESS
+        return super().on_cleanup(state)
 
     def on_shutdown(self, state: State) -> TransitionCallbackReturn:
         """
@@ -162,8 +164,10 @@ class LifecycleListener(Node):
           TransitionCallbackReturn.ERROR or any uncaught exceptions to "errorprocessing"
         """
         self.get_logger().info("on_shutdown() is called.")
+        self.destroy_subscription(self._sub)
+        self.destroy_service(self.srv)
 
-        return TransitionCallbackReturn.SUCCESS
+        return super().on_shutdown(state)
 
 
 # A lifecycle node has the same node API
