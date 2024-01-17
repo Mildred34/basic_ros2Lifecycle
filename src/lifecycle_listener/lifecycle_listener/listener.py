@@ -83,7 +83,7 @@ class LifecycleListener(Node):
                 f"Lifecycle listener is active. Listening: [{msg.data}]"
             )
 
-        if self._count > 10:
+        if self._count > 1:
             self.done_ = True
 
     def on_configure(self, state: State) -> TransitionCallbackReturn:
@@ -144,7 +144,6 @@ class LifecycleListener(Node):
           TransitionCallbackReturn.FAILURE transitions to "inactive".
           TransitionCallbackReturn.ERROR or any uncaught exceptions to "errorprocessing"
         """
-        self.destroy_publisher(self._sub)
         self.get_logger().info("on_cleanup() is called.")
 
         return TransitionCallbackReturn.SUCCESS
@@ -162,7 +161,6 @@ class LifecycleListener(Node):
           TransitionCallbackReturn.FAILURE transitions to "inactive".
           TransitionCallbackReturn.ERROR or any uncaught exceptions to "errorprocessing"
         """
-        self.destroy_publisher(self._sub)
         self.get_logger().info("on_shutdown() is called.")
 
         return TransitionCallbackReturn.SUCCESS

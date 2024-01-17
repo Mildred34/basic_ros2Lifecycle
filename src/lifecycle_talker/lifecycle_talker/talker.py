@@ -90,7 +90,7 @@ class LifecycleTalker(Node):
         if self._pub is not None:
             self._pub.publish(msg)
 
-        if self._count > 20:
+        if self._count > 5:
             self._done = True
 
     def on_configure(self, state: State) -> TransitionCallbackReturn:
