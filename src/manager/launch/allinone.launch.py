@@ -1,9 +1,12 @@
 from launch import LaunchDescription
 from launch.actions import EmitEvent
 from launch.events import Shutdown
+from launch.events.matchers import matches_action
 from launch_ros.actions import LifecycleNode, Node
+from launch_ros.event_handlers import OnStateTransition
 from launch.event_handlers import OnProcessExit
 from launch.actions import RegisterEventHandler
+from launch.events.process import ShutdownProcess
 from launch.actions import (
     IncludeLaunchDescription,
     RegisterEventHandler,
@@ -68,7 +71,45 @@ def generate_launch_description():
     First_process_nodes.append(lifecycle_talker_node)
     First_process_nodes.append(lifecycle_listener_node)
 
+    destroy_node = []
+    destroy_node.append(
+        RegisterEventHandler(
+            OnStateTransition(
+                target_lifecycle_node=lifecycle_listener_node,
+                start_state="shuttingdown",
+                goal_state="finalized",
+                entities=[
+                    EmitEvent(
+                        event=ShutdownProcess(
+                            process_matcher=matches_action(lifecycle_listener_node)
+                        )
+                    ),
+                ],
+            )
+        )
+    )
+
+    destroy_node.append(
+        RegisterEventHandler(
+            OnStateTransition(
+                target_lifecycle_node=lifecycle_talker_node,
+                start_state="shuttingdown",
+                goal_state="finalized",
+                entities=[
+                    EmitEvent(
+                        event=ShutdownProcess(
+                            process_matcher=matches_action(lifecycle_talker_node)
+                        )
+                    ),
+                ],
+            )
+        )
+    )
+
     for node in First_process_nodes:
+        event_handlers.append(node)
+
+    for node in destroy_node:
         event_handlers.append(node)
 
     # Second Process
