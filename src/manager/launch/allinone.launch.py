@@ -4,13 +4,14 @@ from launch.events import Shutdown
 from launch.events.matchers import matches_action
 from launch_ros.actions import LifecycleNode, Node
 from launch_ros.event_handlers import OnStateTransition
-from launch.event_handlers import OnProcessExit
+from launch.event_handlers import OnProcessExit, OnShutdown
 from launch.actions import RegisterEventHandler
 from launch.events.process import ShutdownProcess
 from launch.actions import (
     IncludeLaunchDescription,
     RegisterEventHandler,
     TimerAction,
+    LogInfo
 )
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import PathJoinSubstitution
@@ -39,7 +40,7 @@ def generate_launch_description():
             "--log-level",
             "info",
         ],
-        # on_exit=EmitEvent(event=Shutdown(reason="Window closed")),
+        #on_exit=EmitEvent(event=Shutdown(reason="Window closed")),
     )
     First_process_nodes.append(manager_node)
 

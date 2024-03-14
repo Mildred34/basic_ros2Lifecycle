@@ -20,7 +20,7 @@ def generate_launch_description():
             "--log-level",
             "info",
         ],
-        # on_exit=EmitEvent(event=Shutdown(reason="Window closed")),
+        on_exit=EmitEvent(event=Shutdown(reason="Window closed")),
     )
     Second_process_nodes.append(manager_node_2)
 
